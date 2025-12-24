@@ -594,6 +594,35 @@ export interface Database {
           updated_at?: string
         }
       }
+      dnd_character_spells: {
+        Row: {
+          id: string
+          character_id: string
+          spell_slug: string
+          spell_name: string
+          spell_level: number
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          character_id: string
+          spell_slug: string
+          spell_name: string
+          spell_level: number
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          character_id?: string
+          spell_slug?: string
+          spell_name?: string
+          spell_level?: number
+          notes?: string | null
+          created_at?: string
+        }
+      }
     }
   }
 }
@@ -629,6 +658,10 @@ export interface InitiativeItem {
 export type CachedSpell = Database['public']['Tables']['open5e_spells']['Row']
 export type CachedRace = Database['public']['Tables']['open5e_races']['Row']
 export type CachedClass = Database['public']['Tables']['open5e_classes']['Row']
+
+// Character Spells helper type
+export type CharacterSpell = Database['public']['Tables']['dnd_character_spells']['Row']
+export type CharacterSpellInsert = Database['public']['Tables']['dnd_character_spells']['Insert']
 
 // StoryNote with monster info (for NPC with combat stats)
 export interface StoryNoteWithMonster extends StoryNote {

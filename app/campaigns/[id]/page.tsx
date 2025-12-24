@@ -8,7 +8,7 @@ import { Campaign, Character, StoryNote, Encounter, Monster, InitiativeItem, Ses
 import { searchSpells, getSpellBySlug, SPELL_SCHOOLS, SPELL_LEVELS, getAllRaces, getAllClasses, CachedSpell, CachedRace, CachedClass } from '@/lib/open5e'
 import { DND_CLASSES, DND_RACES, CONDITIONS, formatModifier, rollInitiative, abilityModifier, getClassResources } from '@/lib/dnd-utils'
 import { useResource, restoreResource, shortRest, longRest, getRechargeColor, getRechargeLabel } from '@/lib/class-resources'
-import type { ClassResource, Json } from '@/types/database'
+import type { ClassResource, Json, CharacterSpell, CharacterSpellInsert } from '@/types/database'
 
 // Extended Character type for client-side state with properly typed class_resources
 type CharacterState = Omit<Character, 'class_resources'> & {
@@ -146,6 +146,12 @@ export default function CampaignPage() {
   // Character Edit Mode state
   const [editingCharacter, setEditingCharacter] = useState(false)
   const [editedCharacter, setEditedCharacter] = useState<CharacterState | null>(null)
+
+  // Character Spells state
+  const [characterSpells, setCharacterSpells] = useState<CharacterSpell[]>([])
+  const [loadingCharacterSpells, setLoadingCharacterSpells] = useState(false)
+  const [addingSpellToCharacter, setAddingSpellToCharacter] = useState(false)
+  const [addSpellDialogOpen, setAddSpellDialogOpen] = useState(false)
 
   // Sessions state
   const [sessions, setSessions] = useState<Session[]>([])
@@ -984,9 +990,63 @@ export default function CampaignPage() {
 
   // ==================== CHARACTER DETAILS FUNCTIONS ====================
 
+  async function fetchCharacterSpells(characterId: string) {
+    setLoadingCharacterSpells(true)
+    const { data, error } = await supabase
+      .from('dnd_character_spells')
+      .select('*')
+      .eq('character_id', characterId)
+      .order('spell_level', { ascending: true })
+      .order('spell_name', { ascending: true })
+
+    if (!error && data) {
+      setCharacterSpells(data)
+    } else {
+      setCharacterSpells([])
+      if (error) console.error('Error fetching character spells:', error)
+    }
+    setLoadingCharacterSpells(false)
+  }
+
+  async function addSpellToCharacter(spell: CachedSpell) {
+    if (!selectedCharacter) return
+
+    setAddingSpellToCharacter(true)
+    const { error } = await supabase
+      .from('dnd_character_spells')
+      .insert({
+        character_id: selectedCharacter.id,
+        spell_slug: spell.slug,
+        spell_name: spell.name,
+        spell_level: spell.level_int || 0,
+      })
+
+    if (!error) {
+      await fetchCharacterSpells(selectedCharacter.id)
+      setAddSpellDialogOpen(false)
+    } else {
+      console.error('Error adding spell:', error)
+    }
+    setAddingSpellToCharacter(false)
+  }
+
+  async function removeSpellFromCharacter(spellId: string) {
+    const { error } = await supabase
+      .from('dnd_character_spells')
+      .delete()
+      .eq('id', spellId)
+
+    if (!error) {
+      setCharacterSpells(characterSpells.filter(s => s.id !== spellId))
+    }
+  }
+
   function openCharacterDetails(character: CharacterState) {
     setSelectedCharacter(character)
     setViewingCharacterDetails(true)
+
+    // Carica incantesimi del personaggio
+    fetchCharacterSpells(character.id)
 
     // Carica dati razza da Open5e (se disponibile)
     if (character.race) {
@@ -4970,6 +5030,159 @@ export default function CampaignPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Character Spells */}
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-[var(--ink)] uppercase tracking-wide flex items-center gap-2">
+                      <GameIcon name="magic" category="ui" size={18} className="text-[var(--purple-dark)]" />
+                      Incantesimi
+                    </h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAddSpellDialogOpen(true)}
+                      className="text-xs"
+                    >
+                      + Aggiungi
+                    </Button>
+                  </div>
+                  <div className="p-4 bg-[var(--parchment-light)] rounded-lg border border-[var(--border-decorative)]">
+                    {loadingCharacterSpells ? (
+                      <p className="text-sm text-[var(--ink-light)] text-center py-4">Caricamento...</p>
+                    ) : characterSpells.length === 0 ? (
+                      <p className="text-sm text-[var(--ink-light)] text-center py-4">
+                        Nessun incantesimo assegnato
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Group spells by level */}
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(level => {
+                          const spellsAtLevel = characterSpells.filter(s => s.spell_level === level)
+                          if (spellsAtLevel.length === 0) return null
+                          return (
+                            <div key={level}>
+                              <h5 className="text-xs font-semibold text-[var(--ink-light)] uppercase mb-2">
+                                {level === 0 ? 'Trucchetti' : `${level}° Livello`}
+                              </h5>
+                              <div className="flex flex-wrap gap-2">
+                                {spellsAtLevel.map(spell => (
+                                  <div
+                                    key={spell.id}
+                                    className="group flex items-center gap-1 px-2 py-1 bg-[var(--purple-dark)]/10 text-[var(--purple-dark)] rounded text-sm cursor-pointer hover:bg-[var(--purple-dark)]/20"
+                                    onClick={async () => {
+                                      const fullSpell = await getSpellBySlug(spell.spell_slug)
+                                      if (fullSpell) {
+                                        setSelectedSpell(fullSpell)
+                                        setViewingSpell(true)
+                                      }
+                                    }}
+                                  >
+                                    <span>{spell.spell_name}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        removeSpellFromCharacter(spell.id)
+                                      }}
+                                      className="opacity-0 group-hover:opacity-100 ml-1 text-[var(--coral)] hover:text-red-600"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Add Spell Dialog */}
+                <Dialog open={addSpellDialogOpen} onOpenChange={setAddSpellDialogOpen}>
+                  <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Aggiungi Incantesimo</DialogTitle>
+                      <DialogDescription>
+                        Cerca un incantesimo da aggiungere a {char.name}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Cerca incantesimo..."
+                          value={spellSearch}
+                          onChange={(e) => setSpellSearch(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSpellSearch()}
+                        />
+                        <Button onClick={handleSpellSearch} disabled={searchingSpells}>
+                          {searchingSpells ? '...' : 'Cerca'}
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Select
+                          value={spellFilters.level?.toString() || 'all'}
+                          onValueChange={(v) => setSpellFilters({ ...spellFilters, level: v === 'all' ? null : parseInt(v) })}
+                        >
+                          <SelectTrigger className="w-[120px]">
+                            <SelectValue placeholder="Livello" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tutti</SelectItem>
+                            {SPELL_LEVELS.map(l => (
+                              <SelectItem key={l.value} value={l.value.toString()}>{l.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={spellFilters.school || 'all'}
+                          onValueChange={(v) => setSpellFilters({ ...spellFilters, school: v === 'all' ? null : v })}
+                        >
+                          <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="Scuola" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tutte</SelectItem>
+                            {SPELL_SCHOOLS.map(s => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {spells.length > 0 && (
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {spells.map(spell => {
+                            const alreadyAdded = characterSpells.some(cs => cs.spell_slug === spell.slug)
+                            return (
+                              <div
+                                key={spell.id}
+                                className={`p-3 border rounded-lg ${alreadyAdded ? 'bg-gray-100 opacity-50' : 'hover:bg-gray-50 cursor-pointer'}`}
+                                onClick={() => !alreadyAdded && addSpellToCharacter(spell)}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-medium text-sm">{spell.name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {spell.level_int === 0 ? 'Trucchetto' : `${spell.level_int}° livello`} • {spell.school}
+                                    </p>
+                                  </div>
+                                  {alreadyAdded ? (
+                                    <span className="text-xs text-gray-400">Già aggiunto</span>
+                                  ) : (
+                                    <Button size="sm" variant="outline" disabled={addingSpellToCharacter}>
+                                      {addingSpellToCharacter ? '...' : 'Aggiungi'}
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
                 {/* Notes */}
                 {(editingCharacter || char.notes) && (
