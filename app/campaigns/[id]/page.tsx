@@ -8,7 +8,12 @@ import { Campaign, Character, StoryNote, Encounter, Monster, InitiativeItem, Ses
 import { searchSpells, getSpellBySlug, SPELL_SCHOOLS, SPELL_LEVELS, getAllRaces, getAllClasses, CachedSpell, CachedRace, CachedClass } from '@/lib/open5e'
 import { DND_CLASSES, DND_RACES, CONDITIONS, formatModifier, rollInitiative, abilityModifier, getClassResources } from '@/lib/dnd-utils'
 import { useResource, restoreResource, shortRest, longRest, getRechargeColor, getRechargeLabel } from '@/lib/class-resources'
-import type { ClassResource } from '@/types/database'
+import type { ClassResource, Json } from '@/types/database'
+
+// Extended Character type for client-side state with properly typed class_resources
+type CharacterState = Omit<Character, 'class_resources'> & {
+  class_resources: ClassResource[] | null
+}
 import { GameIcon } from '@/components/icons/GameIcon'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,7 +31,7 @@ export default function CampaignPage() {
   const campaignId = params.id as string
 
   const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [characters, setCharacters] = useState<Character[]>([])
+  const [characters, setCharacters] = useState<CharacterState[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('party')
   const [isCharacterDialogOpen, setIsCharacterDialogOpen] = useState(false)
@@ -49,7 +54,7 @@ export default function CampaignPage() {
 
   // Avatar upload state
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false)
-  const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null)
+  const [selectedCharacter, setSelectedCharacter] = useState<CharacterState | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -140,7 +145,7 @@ export default function CampaignPage() {
 
   // Character Edit Mode state
   const [editingCharacter, setEditingCharacter] = useState(false)
-  const [editedCharacter, setEditedCharacter] = useState<Character | null>(null)
+  const [editedCharacter, setEditedCharacter] = useState<CharacterState | null>(null)
 
   // Sessions state
   const [sessions, setSessions] = useState<Session[]>([])
@@ -275,7 +280,8 @@ export default function CampaignPage() {
     if (charactersError) {
       console.error('Error fetching characters:', charactersError)
     } else {
-      setCharacters(charactersData || [])
+      // Cast from DB type to client state type (class_resources: Json -> ClassResource[])
+      setCharacters((charactersData || []) as CharacterState[])
     }
 
     setLoading(false)
@@ -978,7 +984,7 @@ export default function CampaignPage() {
 
   // ==================== CHARACTER DETAILS FUNCTIONS ====================
 
-  function openCharacterDetails(character: Character) {
+  function openCharacterDetails(character: CharacterState) {
     setSelectedCharacter(character)
     setViewingCharacterDetails(true)
 
@@ -1295,7 +1301,7 @@ export default function CampaignPage() {
     if (error) {
       console.error('Error creating character:', error)
     } else if (data) {
-      setCharacters([...characters, data])
+      setCharacters([...characters, data as CharacterState])
       setNewCharacter({
         name: '',
         player_name: '',
@@ -1372,7 +1378,7 @@ export default function CampaignPage() {
     updateCharacterResources(characterId, updated)
   }
 
-  function initializeResources(character: Character) {
+  function initializeResources(character: CharacterState) {
     const resources = getClassResources(
       character.class,
       character.level,
@@ -1382,7 +1388,7 @@ export default function CampaignPage() {
   }
 
   // Avatar upload functions
-  function openAvatarDialog(character: Character) {
+  function openAvatarDialog(character: CharacterState) {
     setSelectedCharacter(character)
     setAvatarPreview(character.avatar_url || null)
     setAvatarDialogOpen(true)
