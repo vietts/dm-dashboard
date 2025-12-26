@@ -623,6 +623,108 @@ export interface Database {
           created_at?: string
         }
       }
+      // ============================================
+      // Narrative Branching System Tables
+      // ============================================
+      dnd_narrative_nodes: {
+        Row: {
+          id: string
+          act_id: string
+          title: string
+          description: string | null
+          position_x: number
+          position_y: number
+          is_root: boolean
+          is_current: boolean
+          was_visited: boolean
+          visited_at: string | null
+          session_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          act_id: string
+          title: string
+          description?: string | null
+          position_x?: number
+          position_y?: number
+          is_root?: boolean
+          is_current?: boolean
+          was_visited?: boolean
+          visited_at?: string | null
+          session_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          act_id?: string
+          title?: string
+          description?: string | null
+          position_x?: number
+          position_y?: number
+          is_root?: boolean
+          is_current?: boolean
+          was_visited?: boolean
+          visited_at?: string | null
+          session_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      dnd_narrative_edges: {
+        Row: {
+          id: string
+          from_node_id: string
+          to_node_id: string
+          label: string | null
+          was_taken: boolean
+          taken_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          from_node_id: string
+          to_node_id: string
+          label?: string | null
+          was_taken?: boolean
+          taken_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          from_node_id?: string
+          to_node_id?: string
+          label?: string | null
+          was_taken?: boolean
+          taken_at?: string | null
+          created_at?: string
+        }
+      }
+      dnd_narrative_node_links: {
+        Row: {
+          id: string
+          node_id: string
+          link_type: 'note' | 'encounter' | 'monster'
+          link_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          node_id: string
+          link_type: 'note' | 'encounter' | 'monster'
+          link_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          node_id?: string
+          link_type?: 'note' | 'encounter' | 'monster'
+          link_id?: string
+          created_at?: string
+        }
+      }
     }
   }
 }
@@ -677,4 +779,38 @@ export interface ClassResource {
   recharge: 'short' | 'long'  // When it recharges
   class: string        // Originating class
   description?: string // Optional description (e.g., "HP pool" for Lay on Hands)
+}
+
+// ============================================
+// Narrative Branching System Types
+// ============================================
+export type NarrativeNode = Database['public']['Tables']['dnd_narrative_nodes']['Row']
+export type NarrativeNodeInsert = Database['public']['Tables']['dnd_narrative_nodes']['Insert']
+export type NarrativeNodeUpdate = Database['public']['Tables']['dnd_narrative_nodes']['Update']
+
+export type NarrativeEdge = Database['public']['Tables']['dnd_narrative_edges']['Row']
+export type NarrativeEdgeInsert = Database['public']['Tables']['dnd_narrative_edges']['Insert']
+export type NarrativeEdgeUpdate = Database['public']['Tables']['dnd_narrative_edges']['Update']
+
+export type NarrativeNodeLink = Database['public']['Tables']['dnd_narrative_node_links']['Row']
+export type NarrativeNodeLinkInsert = Database['public']['Tables']['dnd_narrative_node_links']['Insert']
+
+// Extended node with resolved relationships (for UI)
+export interface NarrativeNodeWithRelations extends NarrativeNode {
+  outgoing_edges: NarrativeEdge[]
+  incoming_edges: NarrativeEdge[]
+  linked_notes: StoryNote[]
+  linked_encounters: Encounter[]
+  linked_monsters: Monster[]
+  children: NarrativeNodeWithRelations[]
+}
+
+// Full tree structure for visualization
+export interface NarrativeTree {
+  nodes: NarrativeNode[]
+  edges: NarrativeEdge[]
+  links: NarrativeNodeLink[]
+  root_node: NarrativeNode | null
+  current_node: NarrativeNode | null
+  visited_path: string[] // Ordered list of visited node IDs
 }

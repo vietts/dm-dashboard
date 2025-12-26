@@ -13,6 +13,7 @@ import { EncountersSection } from '@/components/act/EncountersSection'
 import { NPCMonstersSection } from '@/components/act/NPCMonstersSection'
 import { ActNavigation } from '@/components/act/ActNavigation'
 import { ActSessions } from '@/components/act/ActSessions'
+import { NarrativeTreeList } from '@/components/narrative'
 import { Button } from '@/components/ui/button'
 import { GameIcon } from '@/components/icons/GameIcon'
 
@@ -363,6 +364,19 @@ export default function ActDetailPage() {
           objectives={act.objectives || []}
           onUpdate={(objectives) => updateAct({ objectives })}
         />
+
+        {/* Narrative Tree */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <GameIcon name="path" category="ui" size={24} className="text-[var(--teal)]" />
+            <h2 className="text-xl font-display text-[var(--ink)]">Albero Narrativo</h2>
+          </div>
+          <NarrativeTreeList
+            actId={actId}
+            campaignId={campaignId}
+            actNumber={act.act_number}
+          />
+        </section>
 
         {/* Notes by Type */}
         <NotesByTypeSection
